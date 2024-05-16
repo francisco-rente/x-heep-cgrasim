@@ -1,0 +1,19 @@
+CAPI=2:
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "example:ip:cgracommdpi:0.1"
+description: "CGRACOMM-DPI"
+
+filesets:
+  files_rtl:
+    files:
+      - cgracommdpi.sv: { file_type: systemVerilogSource }
+      - cgracommdpi.c: { file_type: cppSource }
+      - cgracommdpi.h: { file_type: cppSource, is_include_file: true }
+
+
+targets:
+  default:
+    filesets:
+      - files_rtl

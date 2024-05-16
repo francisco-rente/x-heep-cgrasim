@@ -276,7 +276,7 @@ module testharness #(
       .clk_i                    (clk_i),
       .rst_ni                   (rst_ni),
       .addr_map_i               (EXT_XBAR_ADDR_RULES),
-      .default_idx_i            (SLOW_MEMORY_IDX[LOG_EXT_XBAR_NSLAVE-1:0]),
+      .default_idx_i            (CGRACOMM_IDX[LOG_EXT_XBAR_NSLAVE-1:0]),
       .heep_core_instr_req_i    (heep_core_instr_req),
       .heep_core_instr_resp_o   (heep_core_instr_resp),
       .heep_core_data_req_i     (heep_core_data_req),
@@ -484,6 +484,33 @@ module testharness #(
           .acc_write_ch0_req_o(ext_master_req[testharness_pkg::EXT_MASTER3_IDX]),
           .acc_write_ch0_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER3_IDX])
       );
+
+        /*
+
+
+  ____ ____ ____      _    ____ ___  __  __ __  __ 
+ / ___/ ___|  _ \    / \  / ___/ _ \|  \/  |  \/  |
+| |  | |  _| |_) |  / _ \| |  | | | | |\/| | |\/| |
+| |__| |_| |  _ <  / ___ \ |__| |_| | |  | | |  | |
+ \____\____|_| \_\/_/   \_\____\___/|_|  |_|_|  |_|
+
+
+        */
+       cgra_comm #(
+            .reg_req_t (reg_pkg::reg_req_t), 
+            .reg_rsp_t (reg_pkg::reg_req_t),
+            .obi_req_t (obi_pkg::obi_req_t),
+            .obi_resp_t(obi_pkg::obi_resp_t)
+       ) cgra_comm_t (
+            .clk_i, 
+            .rst_ni, 
+            .reg_req_i(ext_periph_slv_req[testharness_pkg::CGRACOMM_PERIPH_ACC_IDX]),
+            .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::CGRACOMM_PERIPH_ACC_IDX])
+            // .masters_req_o(ext_master_req[testharness_pkg::EXT_MASTER0_IDX]),
+            // .masters_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER0_IDX]),
+            // .slave_req_i(ext_slave_req[testharness_pkg::CGRACOMM_PERIPH_ACC_IDX]),
+            // .slave_resp_o(ext_slave_resp[testharness_pkg::CGRACOMM_PERIPH_ACC_IDX])
+       );
 
       // AMS external peripheral
       ams #(

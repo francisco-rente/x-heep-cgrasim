@@ -22,16 +22,30 @@ package testharness_pkg;
   localparam logic [31:0] SLOW_MEMORY_END_ADDRESS = SLOW_MEMORY_START_ADDRESS + SLOW_MEMORY_SIZE;
   localparam logic [31:0] SLOW_MEMORY_IDX = 32'd0;
 
+  localparam logic [31:0] CGRACOMM_START_ADDRESS  = core_v_mini_mcu_pkg::EXT_SLAVE_START_ADDRESS;
+  localparam logic [31:0] CGRACOMM_SIZE = 32'h100;
+  localparam logic [31:0] CGRACOMM_END_ADDRESS = CGRACOMM_START_ADDRESS + CGRACOMM_SIZE;
+  localparam logic [31:0] CGRACOMM_IDX = 32'd0;
+
+
+
+
   localparam addr_map_rule_t [EXT_XBAR_NSLAVE-1:0] EXT_XBAR_ADDR_RULES = '{
-      '{
-          idx: SLOW_MEMORY_IDX,
-          start_addr: SLOW_MEMORY_START_ADDRESS,
-          end_addr: SLOW_MEMORY_END_ADDRESS
-      }
+    //   '{
+    //       idx: SLOW_MEMORY_IDX,
+    //       start_addr: SLOW_MEMORY_START_ADDRESS,
+    //       end_addr: SLOW_MEMORY_END_ADDRESS
+    //   }, 
+     '{
+        idx: CGRACOMM_IDX,
+        start_addr: CGRACOMM_START_ADDRESS,
+        end_addr: CGRACOMM_END_ADDRESS
+     }
+
   };
 
   //slave encoder
-  localparam EXT_NPERIPHERALS = 4;
+  localparam EXT_NPERIPHERALS = 5;
 
   // Memcopy controller (external peripheral example)
   localparam logic [31:0] MEMCOPY_CTRL_START_ADDRESS = core_v_mini_mcu_pkg::EXT_PERIPHERAL_START_ADDRESS + 32'h0;
@@ -57,6 +71,17 @@ package testharness_pkg;
   localparam logic [31:0] SIMPLE_ACC_END_ADDRESS = SIMPLE_ACC_START_ADDRESS + SIMPLE_ACC_SIZE;
   localparam logic [31:0] SIMPLE_ACC_IDX = 32'd3;
 
+
+  // CGRACOMM external peripheral (CGRACOMM_PERIPH_ACC_IDX)
+  localparam logic [31:0] CGRACOMM_PERIPH_ACC_START_ADDRESS = core_v_mini_mcu_pkg::EXT_PERIPHERAL_START_ADDRESS + 32'h04000;
+  localparam logic [31:0] CGRACOMM_PERIPH_ACC_SIZE = 32'h100;
+  localparam logic [31:0] CGRACOMM_PERIPH_ACC_END_ADDRESS = CGRACOMM_PERIPH_ACC_START_ADDRESS + CGRACOMM_PERIPH_ACC_SIZE;
+  localparam logic [31:0] CGRACOMM_PERIPH_ACC_IDX = 32'd4;    
+
+
+
+
+
   localparam addr_map_rule_t [EXT_NPERIPHERALS-1:0] EXT_PERIPHERALS_ADDR_RULES = '{
       '{
           idx: MEMCOPY_CTRL_IDX,
@@ -69,6 +94,11 @@ package testharness_pkg;
           idx: SIMPLE_ACC_IDX,
           start_addr: SIMPLE_ACC_START_ADDRESS,
           end_addr: SIMPLE_ACC_END_ADDRESS
+      },
+      '{
+          idx: CGRACOMM_PERIPH_ACC_IDX,
+          start_addr: CGRACOMM_PERIPH_ACC_START_ADDRESS,
+          end_addr: CGRACOMM_PERIPH_ACC_END_ADDRESS
       }
   };
 

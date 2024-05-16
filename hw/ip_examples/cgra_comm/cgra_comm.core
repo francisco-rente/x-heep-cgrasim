@@ -1,0 +1,15 @@
+CAPI=2:
+
+name: "example:ip:cgra_comm"
+description: "core-v-mini-mcu iffifo peripheral cgra"
+
+filesets:
+  files_rtl:
+    files:
+    - cgra_comm.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+    - files_rtl
