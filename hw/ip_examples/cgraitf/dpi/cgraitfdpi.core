@@ -1,0 +1,15 @@
+CAPI=2:
+
+name: "example:ip:cgraitfdpi:0.1"
+description: "UART-DPI"
+
+filesets:
+  files_rtl:
+    files:
+      - cgraitfdpi.c: { file_type: cppSource }
+      - cgraitfdpi.h: { file_type: cppSource, is_include_file: true }
+
+targets:
+  default:
+    filesets:
+      - files_rtl

@@ -21,17 +21,6 @@ module testharness #(
     inout wire boot_select_i,
     inout wire execute_from_flash_i,
 
-`ifdef SIM_SYSTEMC
-    output logic        ext_systemc_req_req_o,
-    output logic        ext_systemc_req_we_o,
-    output logic [ 3:0] ext_systemc_req_be_o,
-    output logic [31:0] ext_systemc_req_addr_o,
-    output logic [31:0] ext_systemc_req_wdata_o,
-
-    input  logic        ext_systemc_resp_gnt_i,
-    input  logic        ext_systemc_resp_rvalid_i,
-    input  logic [31:0] ext_systemc_resp_rdata_i,
-`endif
     input  wire         jtag_tck_i,
     input  wire         jtag_tms_i,
     input  wire         jtag_trst_ni,
@@ -85,9 +74,6 @@ module testharness #(
 
   logic [EXT_PERIPHERALS_PORT_SEL_WIDTH-1:0] ext_periph_select;
 
-  logic iffifo_in_ready, iffifo_out_valid;
-  logic iffifo_int_o;
-
   // External xbar master/slave and peripheral ports
   obi_req_t [EXT_XBAR_NMASTER_RND-1:0] ext_master_req;
   obi_req_t [EXT_XBAR_NMASTER_RND-1:0] heep_slave_req;
@@ -115,7 +101,6 @@ module testharness #(
 
   // External interrupts
   logic [NEXT_INT_RND-1:0] intr_vector_ext;
-  logic memcopy_intr;
 
   // External subsystems
   logic [EXT_DOMAINS_RND-1:0] external_subsystem_powergate_switch_n;
@@ -140,9 +125,6 @@ module testharness #(
     for (int i = 0; i < core_v_mini_mcu_pkg::NEXT_INT; i++) begin
       intr_vector_ext[i] = 1'b0;
     end
-    // Re-assign the interrupt lines used here
-    intr_vector_ext[0] = memcopy_intr;
-    intr_vector_ext[1] = iffifo_int_o;
   end
 
   //log parameters
@@ -261,8 +243,8 @@ module testharness #(
       .external_subsystem_rst_no(external_subsystem_rst_n),
       .external_ram_banks_set_retentive_no(external_ram_banks_set_retentive_n),
       .external_subsystem_clkgate_en_no(external_subsystem_clkgate_en_n),
-      .ext_dma_slot_tx_i(iffifo_in_ready),
-      .ext_dma_slot_rx_i(iffifo_out_valid)
+      .ext_dma_slot_tx_i(1'b0),
+      .ext_dma_slot_rx_i(1'b0)
   );
 
   // Testbench external bus
@@ -276,7 +258,7 @@ module testharness #(
       .clk_i                    (clk_i),
       .rst_ni                   (rst_ni),
       .addr_map_i               (EXT_XBAR_ADDR_RULES),
-      .default_idx_i            (SLOW_MEMORY_IDX[LOG_EXT_XBAR_NSLAVE-1:0]),
+      .default_idx_i            (CGRAITF_IDX[LOG_EXT_XBAR_NSLAVE-1:0]),
       .heep_core_instr_req_i    (heep_core_instr_req),
       .heep_core_instr_resp_o   (heep_core_instr_resp),
       .heep_core_data_req_i     (heep_core_data_req),
@@ -343,7 +325,6 @@ module testharness #(
 `endif
   end
 
-
   uartdpi #(
       .BAUD('d256000),
       .FREQ(CLK_FREQUENCY * 1000),  //Hz
@@ -381,257 +362,95 @@ module testharness #(
   assign sim_jtag_tdo   = JTAG_DPI ? mux_jtag_tdo : '0;
   assign jtag_tdo_o     = !JTAG_DPI ? mux_jtag_tdo : '0;
 
-  // External xbar slave example port
-  obi_req_t  slow_ram_slave_req;
-  obi_resp_t slow_ram_slave_resp;
+  cgraitf #(
+      .reg_req_t (reg_pkg::reg_req_t),
+      .reg_rsp_t (reg_pkg::reg_rsp_t),
+      .obi_req_t (obi_pkg::obi_req_t),
+      .obi_resp_t(obi_pkg::obi_resp_t)
+  ) cgraitf_1 (
+      .clk_i,
+      .rst_ni,
+      .reg_req_i(ext_periph_slv_req[testharness_pkg::CGRAITF_PERIPH_ACC_IDX]),
+      .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::CGRAITF_PERIPH_ACC_IDX]),
+      .masters_req_o(ext_master_req[testharness_pkg::EXT_MASTER0_IDX]),
+      .masters_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER0_IDX]),
+      .slave_req_i(ext_slave_req[testharness_pkg::CGRAITF_IDX]),
+      .slave_resp_o(ext_slave_resp[testharness_pkg::CGRAITF_IDX])
+  );
 
-`ifndef SIM_SYSTEMC
+  addr_decode #(
+      .NoIndices(testharness_pkg::EXT_NPERIPHERALS),
+      .NoRules(testharness_pkg::EXT_NPERIPHERALS),
+      .addr_t(logic [31:0]),
+      .rule_t(addr_map_rule_pkg::addr_map_rule_t)
+  ) i_addr_decode_soc_regbus_ext_periphs (
+      .addr_i(periph_slave_req.addr),
+      .addr_map_i(testharness_pkg::EXT_PERIPHERALS_ADDR_RULES),
+      .idx_o(ext_periph_select),
+      .dec_valid_o(),
+      .dec_error_o(),
+      .en_default_idx_i(1'b0),
+      .default_idx_i('0)
+  );
 
-  assign slow_ram_slave_req              = ext_slave_req[SLOW_MEMORY_IDX];
-  assign ext_slave_resp[SLOW_MEMORY_IDX] = slow_ram_slave_resp;
-`else
-
-  obi_req_t  ext_systemc_req;
-  obi_resp_t ext_systemc_resp;
-
-  assign ext_systemc_req_req_o           = ext_systemc_req.req;
-  assign ext_systemc_req_we_o            = ext_systemc_req.we;
-  assign ext_systemc_req_be_o            = ext_systemc_req.be;
-  assign ext_systemc_req_addr_o          = ext_systemc_req.addr;
-  assign ext_systemc_req_wdata_o         = ext_systemc_req.wdata;
-
-  assign ext_systemc_resp.gnt            = ext_systemc_resp_gnt_i;
-  assign ext_systemc_resp.rvalid         = ext_systemc_resp_rvalid_i;
-  assign ext_systemc_resp.rdata          = ext_systemc_resp_rdata_i;
-
-  assign ext_systemc_req                 = ext_slave_req[SLOW_MEMORY_IDX];
-  assign ext_slave_resp[SLOW_MEMORY_IDX] = ext_systemc_resp;
-`endif
-
-  generate
-    if (USE_EXTERNAL_DEVICE_EXAMPLE) begin : gen_USE_EXTERNAL_DEVICE_EXAMPLE
-
-`ifndef SIM_SYSTEMC
-      obi_pkg::obi_req_t  slave_fifoout_req;
-      obi_pkg::obi_resp_t slave_fifoout_resp;
-
-      //this FIFO makes the slow memory even more slower in terms of latency
-      obi_fifo obi_fifo_i (
-          .clk_i,
-          .rst_ni,
-          .producer_req_i (slow_ram_slave_req),
-          .producer_resp_o(slow_ram_slave_resp),
-          .consumer_req_o (slave_fifoout_req),
-          .consumer_resp_i(slave_fifoout_resp)
-      );
-
-      // External xbar slave memory example
-      slow_memory #(
-          .NumWords (8192),
-          .DataWidth(32'd32)
-      ) slow_ram_i (
-          .clk_i,
-          .rst_ni,
-          .req_i(slave_fifoout_req.req),
-          .we_i(slave_fifoout_req.we),
-          .addr_i(slave_fifoout_req.addr[15:2]),
-          .wdata_i(slave_fifoout_req.wdata),
-          .be_i(slave_fifoout_req.be),
-          // output ports
-          .gnt_o(slave_fifoout_resp.gnt),
-          .rdata_o(slave_fifoout_resp.rdata),
-          .rvalid_o(slave_fifoout_resp.rvalid)
-      );
-`endif
-
-      parameter DMA_TRIGGER_SLOT_NUM = 4;
-
-      // External peripheral example with master port to access memory
-      dma #(
-          .reg_req_t (reg_pkg::reg_req_t),
-          .reg_rsp_t (reg_pkg::reg_rsp_t),
-          .obi_req_t (obi_pkg::obi_req_t),
-          .obi_resp_t(obi_pkg::obi_resp_t),
-          .SLOT_NUM  (DMA_TRIGGER_SLOT_NUM)
-      ) dma_i (
-          .clk_i,
-          .rst_ni,
-          .reg_req_i(ext_periph_slv_req[testharness_pkg::MEMCOPY_CTRL_IDX]),
-          .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::MEMCOPY_CTRL_IDX]),
-          .dma_read_ch0_req_o(ext_master_req[testharness_pkg::EXT_MASTER0_IDX]),
-          .dma_read_ch0_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER0_IDX]),
-          .dma_write_ch0_req_o(ext_master_req[testharness_pkg::EXT_MASTER1_IDX]),
-          .dma_write_ch0_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER1_IDX]),
-          .dma_addr_ch0_req_o(),
-          .dma_addr_ch0_resp_i('0),
-          .trigger_slot_i('0),
-          .dma_done_intr_o(memcopy_intr),
-          .dma_window_intr_o()
-      );
-
-      simple_accelerator #(
-          .reg_req_t (reg_pkg::reg_req_t),
-          .reg_rsp_t (reg_pkg::reg_rsp_t),
-          .obi_req_t (obi_pkg::obi_req_t),
-          .obi_resp_t(obi_pkg::obi_resp_t)
-      ) simple_accelerator_i (
-          .clk_i,
-          .rst_ni,
-          .reg_req_i(ext_periph_slv_req[testharness_pkg::SIMPLE_ACC_IDX]),
-          .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::SIMPLE_ACC_IDX]),
-          .acc_read_ch0_req_o(ext_master_req[testharness_pkg::EXT_MASTER2_IDX]),
-          .acc_read_ch0_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER2_IDX]),
-          .acc_write_ch0_req_o(ext_master_req[testharness_pkg::EXT_MASTER3_IDX]),
-          .acc_write_ch0_resp_i(ext_master_resp[testharness_pkg::EXT_MASTER3_IDX])
-      );
-
-      // AMS external peripheral
-      ams #(
-          .reg_req_t(reg_pkg::reg_req_t),
-          .reg_rsp_t(reg_pkg::reg_rsp_t)
-      ) ams_i (
-          .clk_i,
-          .rst_ni,
-          .reg_req_i(ext_periph_slv_req[testharness_pkg::AMS_IDX]),
-          .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::AMS_IDX])
-      );
-
-      // InterFaced FIFO (IFFIFO) external peripheral
-      iffifo #(
-          .reg_req_t(reg_pkg::reg_req_t),
-          .reg_rsp_t(reg_pkg::reg_rsp_t)
-      ) iffifo_i (
-          .clk_i,
-          .rst_ni,
-          .reg_req_i(ext_periph_slv_req[testharness_pkg::IFFIFO_IDX]),
-          .reg_rsp_o(ext_periph_slv_rsp[testharness_pkg::IFFIFO_IDX]),
-          // DMA slots
-          .iffifo_in_ready_o(iffifo_in_ready),
-          .iffifo_out_valid_o(iffifo_out_valid),
-          // Interrupt lines
-          .iffifo_int_o(iffifo_int_o)
-      );
-
-      addr_decode #(
-          .NoIndices(testharness_pkg::EXT_NPERIPHERALS),
-          .NoRules(testharness_pkg::EXT_NPERIPHERALS),
-          .addr_t(logic [31:0]),
-          .rule_t(addr_map_rule_pkg::addr_map_rule_t)
-      ) i_addr_decode_soc_regbus_ext_periphs (
-          .addr_i(periph_slave_req.addr),
-          .addr_map_i(testharness_pkg::EXT_PERIPHERALS_ADDR_RULES),
-          .idx_o(ext_periph_select),
-          .dec_valid_o(),
-          .dec_error_o(),
-          .en_default_idx_i(1'b0),
-          .default_idx_i('0)
-      );
-
-      reg_demux #(
-          .NoPorts(testharness_pkg::EXT_NPERIPHERALS),
-          .req_t  (reg_pkg::reg_req_t),
-          .rsp_t  (reg_pkg::reg_rsp_t)
-      ) reg_demux_i (
-          .clk_i,
-          .rst_ni,
-          .in_select_i(ext_periph_select),
-          .in_req_i(periph_slave_req),
-          .in_rsp_o(periph_slave_rsp),
-          .out_req_o(ext_periph_slv_req),
-          .out_rsp_i(ext_periph_slv_rsp)
-      );
-
-      // GPIO counter example
-      gpio_cnt #(
-          .CntMax(32'd2048)
-      ) gpio_cnt_i (
-          .clk_i,
-          .rst_ni,
-          .gpio_i(gpio[30]),
-          .gpio_o(gpio[31])
-      );
-
-      pdm2pcm_dummy pdm2pcm_dummy_i (
-          .clk_i,
-          .rst_ni,
-          .pdm_data_o(gpio[18]),
-          .pdm_clk_i (gpio[19])
-      );
-
-      // I2s "microphone"/rx example
-      i2s_microphone i2s_microphone_i (
-          .rst_ni(rst_ni),
-          .i2s_sck_i(gpio[20]),
-          .i2s_ws_i(gpio[21]),
-          .i2s_sd_o(gpio[22])
-      );
+  reg_demux #(
+      .NoPorts(testharness_pkg::EXT_NPERIPHERALS),
+      .req_t  (reg_pkg::reg_req_t),
+      .rsp_t  (reg_pkg::reg_rsp_t)
+  ) reg_demux_i (
+      .clk_i,
+      .rst_ni,
+      .in_select_i(ext_periph_select),
+      .in_req_i(periph_slave_req),
+      .in_rsp_o(periph_slave_rsp),
+      .out_req_o(ext_periph_slv_req),
+      .out_rsp_i(ext_periph_slv_rsp)
+  );
 
 `ifndef VERILATOR
-      // Flash used for booting (execute from flash or copy from flash)
-      spiflash flash_boot_i (
-          .csb(spi_flash_csb[0]),
-          .clk(spi_flash_sck),
-          .io0(spi_flash_sd_io[0]),  // MOSI
-          .io1(spi_flash_sd_io[1]),  // MISO
-          .io2(spi_flash_sd_io[2]),
-          .io3(spi_flash_sd_io[3])
-      );
+  // Flash used for booting (execute from flash or copy from flash)
+  spiflash flash_boot_i (
+      .csb(spi_flash_csb[0]),
+      .clk(spi_flash_sck),
+      .io0(spi_flash_sd_io[0]),  // MOSI
+      .io1(spi_flash_sd_io[1]),  // MISO
+      .io2(spi_flash_sd_io[2]),
+      .io3(spi_flash_sd_io[3])
+  );
 `endif
 
 `ifndef VERILATOR
-      // Flash used as an example device with an SPI interface
-      spiflash flash_device_i (
-          .csb(spi_csb[0]),
-          .clk(spi_sck),
-          .io0(spi_sd_io[0]),  // MOSI
-          .io1(spi_sd_io[1]),  // MISO
-          .io2(spi_sd_io[2]),
-          .io3(spi_sd_io[3])
-      );
+  // Flash used as an example device with an SPI interface
+  spiflash flash_device_i (
+      .csb(spi_csb[0]),
+      .clk(spi_sck),
+      .io0(spi_sd_io[0]),  // MOSI
+      .io1(spi_sd_io[1]),  // MISO
+      .io2(spi_sd_io[2]),
+      .io3(spi_sd_io[3])
+  );
 `endif
 
-      if ((core_v_mini_mcu_pkg::CpuType == cv32e40x || core_v_mini_mcu_pkg::CpuType == cv32e40px) && X_EXT != 0) begin: gen_fpu_ss_wrapper
-        fpu_ss_wrapper #(
-            .PULP_ZFINX(ZFINX),
-            .INPUT_BUFFER_DEPTH(1),
-            .OUT_OF_ORDER(0),
-            .FORWARDING(1),
-            .FPU_FEATURES(fpu_ss_pkg::FPU_FEATURES),
-            .FPU_IMPLEMENTATION(fpu_ss_pkg::FPU_IMPLEMENTATION)
-        ) fpu_ss_wrapper_i (
-            // Clock and reset
-            .clk_i,
-            .rst_ni,
+  if ((core_v_mini_mcu_pkg::CpuType == cv32e40x || core_v_mini_mcu_pkg::CpuType == cv32e40px) && X_EXT != 0) begin: gen_fpu_ss_wrapper
+    fpu_ss_wrapper #(
+        .PULP_ZFINX(ZFINX),
+        .INPUT_BUFFER_DEPTH(1),
+        .OUT_OF_ORDER(0),
+        .FORWARDING(1),
+        .FPU_FEATURES(fpu_ss_pkg::FPU_FEATURES),
+        .FPU_IMPLEMENTATION(fpu_ss_pkg::FPU_IMPLEMENTATION)
+    ) fpu_ss_wrapper_i (
+        // Clock and reset
+        .clk_i,
+        .rst_ni,
 
-            // eXtension Interface
-            .xif_compressed_if(ext_if),
-            .xif_issue_if(ext_if),
-            .xif_commit_if(ext_if),
-            .xif_mem_if(ext_if),
-            .xif_mem_result_if(ext_if),
-            .xif_result_if(ext_if)
-        );
-      end
-
-    end else begin : gen_DONT_USE_EXTERNAL_DEVICE_EXAMPLE
-      assign slow_ram_slave_resp.gnt = '0;
-      assign slow_ram_slave_resp.rdata = '0;
-      assign slow_ram_slave_resp.rvalid = '0;
-
-      assign ext_periph_slv_req = '0;
-      assign ext_periph_slv_rsp = '0;
-
-      assign ext_master_req[testharness_pkg::EXT_MASTER0_IDX].req = '0;
-      assign ext_master_req[testharness_pkg::EXT_MASTER0_IDX].we = '0;
-      assign ext_master_req[testharness_pkg::EXT_MASTER0_IDX].be = '0;
-      assign ext_master_req[testharness_pkg::EXT_MASTER0_IDX].addr = '0;
-      assign ext_master_req[testharness_pkg::EXT_MASTER0_IDX].wdata = '0;
-
-      assign memcopy_intr = '0;
-      assign iffifo_int_o = '0;
-      assign periph_slave_rsp = '0;
-
-    end
-  endgenerate
-
+        // eXtension Interface
+        .xif_compressed_if(ext_if),
+        .xif_issue_if(ext_if),
+        .xif_commit_if(ext_if),
+        .xif_mem_if(ext_if),
+        .xif_mem_result_if(ext_if),
+        .xif_result_if(ext_if)
+    );
+  end
 endmodule  // testharness
