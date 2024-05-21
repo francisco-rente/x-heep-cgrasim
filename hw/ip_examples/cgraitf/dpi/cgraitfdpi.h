@@ -5,6 +5,8 @@
 #ifndef CGRAITF_DPI_H_
 #define CGRAITF_DPI_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
