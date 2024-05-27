@@ -35,12 +35,29 @@ module cgraitf #(
   assign slave_resp_o.rvalid = '0;
   ;
 
-  import "DPI-C" function void testCGRASim_itf(int data);
+  import "DPI-C" function chandle cgraitfdpi_create();
+  import "DPI-C" function void cgraitfdpi_close(chandle ctx);
+  import "DPI-C" function void cgraitfdpi_write(chandle ctx, int data);
+
+
+  chandle ctx;
+
+
+  initial begin
+    ctx = cgraitfdpi_create();
+  end
+
+  final begin
+    cgraitfdpi_close(ctx);
+    ctx = null;
+  end
+
+
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (rst_ni) begin
       if (reg_req_i.valid && reg_req_i.write) begin
-        testCGRASim_itf(reg_req_i.wdata);
+        cgraitfdpi_write(ctx, reg_req_i.wdata);
       end
     end
   end

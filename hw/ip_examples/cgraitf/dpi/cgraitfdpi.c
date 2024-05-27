@@ -7,34 +7,43 @@
 #include <util.h>
 #endif
 
-/*#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdbool.h>*/
+
 #include <stdio.h>
-/*#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>*/
 #include <sys/stat.h>
-
-void testCGRASim_itf(int data) {
-
-  // get the fifo file from the CGRASIM_PIPE environment variable
-  // char *fifo_path = getenv("CGRASIM_PIPE");
-  // if (fifo_path == NULL) {
-  //   fprintf(stderr, "CGRASIM_PIPE environment variable not set\n");
-  //   return;
-  // }
+#include <assert.h>
 
 
-  mkfifo("/tmp/cgrasim", 0666);
+void *cgraitfdpi_create(){
+    // will block until the file is opened for reading
+    // Assumes that the file is re-created every time
+    struct cgraitfdpi_ctx *ctx = (struct cgraitfdpi_ctx *)malloc(sizeof(struct cgraitfdpi_ctx));
+    
+    int rv;
 
-  FILE *fifo = fopen("/tmp/cgrasim", "w");
-  if (fifo == NULL) {
-    fprintf(stderr, "Failed to open fifo\n");
-    return;
-  }
+    rv = mkfifo("/tmp/cgrasim", 0666);
 
-  fprintf(fifo, "%d\n", data);
-  fclose(fifo);
+    if (rv != 0){
+        perror("mkfifo");
+    }
+
+    assert(rv == 0);
+
+    ctx->file = fopen("/tmp/cgrasim", "w");
+
+    // Nothing is buffered in the file
+    rv = setvbuf(ctx->file, NULL, _IONBF, 0);
+    assert(rv == 0);
+
+    return ctx;
+
+}
+void cgraitfdpi_close(void *ctx_void){
+    struct cgraitfdpi_ctx *ctx = (struct cgraitfdpi_ctx *)ctx_void;
+    fclose(ctx->file);
+    free(ctx);
+}
+void cgraitfdpi_write(void *ctx_void, int data){
+    struct cgraitfdpi_ctx *ctx = (struct cgraitfdpi_ctx *)ctx_void;
+    fprintf(ctx->file, "%d\n", data);
+    fflush(ctx->file);
 }
