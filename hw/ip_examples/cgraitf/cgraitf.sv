@@ -36,8 +36,12 @@ module cgraitf #(
   ;
 
   import "DPI-C" function chandle cgraitfdpi_create();
+  import "DPI-C" function int cgraitfdpi_read(chandle ctx);
   import "DPI-C" function void cgraitfdpi_close(chandle ctx);
-  import "DPI-C" function void cgraitfdpi_write(chandle ctx, int data);
+  import "DPI-C" function void cgraitfdpi_write(
+    chandle ctx,
+    int data
+  );
 
 
   chandle ctx;
@@ -58,6 +62,10 @@ module cgraitf #(
     if (rst_ni) begin
       if (reg_req_i.valid && reg_req_i.write) begin
         cgraitfdpi_write(ctx, reg_req_i.wdata);
+      end
+
+      if (reg_req_i.valid && ~reg_req_i.write) begin
+        reg_rsp_o.rdata = cgraitfdpi_read(ctx);
       end
     end
   end

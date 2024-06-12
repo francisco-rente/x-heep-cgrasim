@@ -11,13 +11,17 @@
 extern "C" {
 #endif
 
+#define BUF_SIZE 1
+#define SV_SOCKET_PATH "/tmp/cgrasim"
+
 struct cgraitfdpi_ctx
 {
-    FILE *file;
+    int sock;
 };
 
 
 void *cgraitfdpi_create();
+int cgraitfdpi_read(void *ctx_void);
 void cgraitfdpi_close(void *ctx_void);
 void cgraitfdpi_write(void *ctx_void, int data);
 
