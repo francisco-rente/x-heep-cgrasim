@@ -56,7 +56,7 @@ ARCH     ?= rv32imc
 SOURCE 	 ?= $(".")
 
 # Simulation engines options are verilator (default) and questasim
-SIMULATOR ?= verilator
+SIMULATOR ?= verilator --main
 
 # Timeout for simulation, default 120
 TIMEOUT ?= 120

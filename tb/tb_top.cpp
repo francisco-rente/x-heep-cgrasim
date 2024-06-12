@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <iostream>
 
+// Time collecting headers
+#include <chrono>
+#include <ctime>    
+
 #include "XHEEP_CmdLineOptions.hh"
 
 vluint64_t sim_time = 0;
@@ -78,6 +82,9 @@ int main (int argc, char * argv[])
   dut->execute_from_flash_i = 1; //this cause boot_sel cannot be 1 anyway
   dut->boot_select_i        = boot_sel;
 
+  auto start = std::chrono::system_clock::now();
+
+
   dut->eval();
   m_trace->dump(sim_time);
   sim_time++;
@@ -113,8 +120,21 @@ int main (int argc, char * argv[])
     }
   }
 
+
+  auto end = std::chrono::system_clock::now();
+
+  std::chrono::duration<double> elapsed_seconds = end-start;
+  std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+
+  std::cout << "Simulation elapsed time: " << elapsed_seconds.count() << "s"
+            << std::endl;
+
   if(dut->exit_valid_o==1) {
     std::cout<<"Program Finished with value "<<dut->exit_value_o<<std::endl;
+
+    std::cout<<"Number of clock cycles: "<<sim_time<<std::endl;     // 100000KHz = 100MHz
+    std::cout<<"Execution time: "<<(sim_time/100000.0l)<<"ms"<<std::endl;
+
     exit_val = EXIT_SUCCESS;
   } else exit_val = EXIT_FAILURE;
 
