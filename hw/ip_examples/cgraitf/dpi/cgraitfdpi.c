@@ -15,7 +15,8 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include <sys/types.h>          /* See NOTES */
+#include <sys/time.h>
 
 
 
@@ -42,6 +43,13 @@ void *cgraitfdpi_create(){
         exit(1);
     }
 
+
+    // set timeout in socket
+    struct timeval tv;  
+    tv.tv_sec = 10; 
+    tv.tv_usec = 0;
+    setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv); 
+
     printf("Creating address\n");
     memset(addr, 0, sizeof(struct sockaddr_un));
     addr->sun_family = AF_UNIX;
@@ -60,6 +68,21 @@ void *cgraitfdpi_create(){
     }
 
     printf("Accepting connection\n");
+
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(sfd, &rfds);
+    int statsus = select(sfd + 1, &rfds, (fd_set *)0, (fd_set *)0, &tv);
+    
+    if (statsus == -1) {
+        perror("select");
+        exit(1);
+    } else if (statsus == 0) {
+        printf("Timeout\n");
+        exit(1);
+    }
+    
+
     cfd = accept(sfd, NULL, NULL);
     if(cfd == -1){
         perror("accept");
@@ -78,7 +101,14 @@ int cgraitfdpi_read(void *ctx_void){
     int data;
     printf("Reading\n");
     // TODO: add error handling, maybe timeout ??
-    recv(ctx->sock, &data, sizeof(data), MSG_WAITALL);
+    int ret = recv(ctx->sock, &data, sizeof(data), MSG_WAITALL);
+    
+    if (ret == -1){
+        perror("recv");
+        cgraitfdpi_close(ctx_void);
+        exit(1);
+    }
+
     printf("Read %d\n", data);
     return data;
 }
@@ -100,5 +130,10 @@ void cgraitfdpi_write(void *ctx_void, int data){
     buf[2] = (data >> 8) & 0xFF;
     buf[3] = data & 0xFF;
 
-    send(ctx->sock, &buf, sizeof(buf), 0);
+    int ret = send(ctx->sock, &buf, sizeof(buf), 0);
+    if (ret == -1){
+        perror("send");
+        cgraitfdpi_close(ctx_void);
+        exit(1);
+    }
 }
