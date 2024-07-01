@@ -24,53 +24,53 @@ const uint32_t instructions[] = {
 0x10120,
 0xb1,
 0x109,
-0xd0090,
-0xd0ab,
+0x50090,
+0x50ab,
 0x20ab,
 0x20020,
 0x201a0,
 0x131,
 0x189,
-0x240ab,
-0xe0ab,
-0xe0110,
-0x240020,
-0x240220,
+0x60110,
+0x60ab,
+0xa0020,
 0x1b1,
 0x209,
-0x190690,
-0x190710,
-0x191ab,
-0x1a0020,
+0x90290,
+0x90310,
+0x91ab,
+0x518,
 0x231,
 0x289,
-0x251210,
-0x250c90,
-0x2512b,
-0xd18,
+0xd0490,
+0xd0220,
+0xd0ab,
 0x2b1,
+0x309,
+0x40698,
+0x331,
 0x54,
 0x5,
-0xd4,
-0xd,
+0x2000d4,
+0x5,
 0x154,
 0x5,
-0x1d4,
-0xd,
+0x2001d4,
+0x5,
 0x254,
-0x15,
+0x5,
 0xb8,
 }; 
 
 
 #define N_LIVEOUTS 1
 const uint32_t liveout_instr[] = {
-    0x59
+    0x259
 };
 
 
 
-void operation(uint32_t *data, uint32_t *extractint, uint8_t n_liveouts) {
+void kernel(uint32_t *data, uint32_t *extractint, uint8_t n_liveouts) {
     volatile static uint32_t *cgra_cmem_ptr = (CGRA_PERIPH_START_ADDRESS);
 
     // Config and start execution instructions
@@ -82,7 +82,7 @@ void operation(uint32_t *data, uint32_t *extractint, uint8_t n_liveouts) {
     // Retrieve liveout instructions
     for (int i = 0; i < n_liveouts; i++) {
         cgra_cmem_ptr[i] = extractint[i]; // send the instruction to the cgra
-        a = cgra_cmem_ptr[i]; // read the result from the cgra
+        a = cgra_cmem_ptr[i]; // read the result from the cgra (blocking wait)
     }
 }
 
@@ -91,6 +91,6 @@ void operation(uint32_t *data, uint32_t *extractint, uint8_t n_liveouts) {
 int main(int argc, char *argv[])
 {
     // do stuff here
-    operation(instructions, liveout_instr, N_LIVEOUTS);
+    kernel(instructions, liveout_instr, N_LIVEOUTS);
     return EXIT_SUCCESS;
 }
